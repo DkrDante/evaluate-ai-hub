@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Upload, Database, Brain, CheckCircle, AlertTriangle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useEvaluationJobs } from "@/hooks/useEvaluationJobs";
 
 interface UploadedFile {
   name: string;
@@ -12,13 +13,64 @@ interface UploadedFile {
 }
 
 interface UploadSectionProps {
-  onFilesUploaded: (dataset: UploadedFile | null, model: UploadedFile | null) => void;
+  onEvaluationStart: (jobId: string) => void;
 }
 
-const UploadSection = ({ onFilesUploaded }: UploadSectionProps) => {
+const UploadSection = ({ onEvaluationStart }: UploadSectionProps) => {
   const [datasetFile, setDatasetFile] = useState<UploadedFile | null>(null);
   const [modelFile, setModelFile] = useState<UploadedFile | null>(null);
+  const [jobName, setJobName] = useState('');
+  const [isCreatingJob, setIsCreatingJob] = useState(false);
   const { toast } = useToast();
+  const { createJob } = useEvaluationJobs();
+
+  const handleCreateEvaluationJob = async () => {
+    if (!datasetFile || !modelFile) {
+      toast({
+        title: "Files Required",
+        description: "Please upload both dataset and model files",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!jobName.trim()) {
+      toast({
+        title: "Job Name Required", 
+        description: "Please enter a name for this evaluation job",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingJob(true);
+    try {
+      const datasetInfo = {
+        name: datasetFile.name,
+        size: datasetFile.size,
+        type: datasetFile.type
+      };
+
+      const modelInfo = {
+        name: modelFile.name,
+        size: modelFile.size,
+        type: modelFile.type
+      };
+
+      const job = await createJob(jobName.trim(), datasetInfo, modelInfo);
+      if (job) {
+        // Reset form
+        setDatasetFile(null);
+        setModelFile(null);
+        setJobName('');
+        
+        // Notify parent to switch to evaluation section
+        onEvaluationStart(job.id);
+      }
+    } finally {
+      setIsCreatingJob(false);
+    }
+  };
 
   const handleFileUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>, type: 'dataset' | 'model') => {
     const file = event.target.files?.[0];
@@ -44,14 +96,7 @@ const UploadSection = ({ onFilesUploaded }: UploadSectionProps) => {
         description: `Successfully uploaded ${file.name}`,
       });
     }
-
-    // Notify parent component
-    if (type === 'dataset') {
-      onFilesUploaded(uploadedFile, modelFile);
-    } else {
-      onFilesUploaded(datasetFile, uploadedFile);
-    }
-  }, [datasetFile, modelFile, onFilesUploaded, toast]);
+  }, [toast]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return '0 Bytes';
@@ -162,15 +207,40 @@ const UploadSection = ({ onFilesUploaded }: UploadSectionProps) => {
 
       {datasetFile && modelFile && (
         <Card className="max-w-2xl mx-auto bg-gradient-accent/5 border-accent/20">
-          <CardContent className="p-6">
+          <CardContent className="p-6 space-y-4">
             <div className="flex items-center space-x-3">
               <CheckCircle className="w-6 h-6 text-success" />
               <div>
                 <h3 className="font-semibold text-foreground">Ready for Evaluation</h3>
                 <p className="text-sm text-muted-foreground">
-                  Both files uploaded successfully. You can now proceed to run the evaluation pipeline.
+                  Both files uploaded successfully. Enter a job name to create your evaluation.
                 </p>
               </div>
+            </div>
+            
+            <div className="space-y-3">
+              <div>
+                <label htmlFor="job-name" className="block text-sm font-medium text-foreground mb-1">
+                  Evaluation Job Name
+                </label>
+                <input
+                  id="job-name"
+                  type="text"
+                  value={jobName}
+                  onChange={(e) => setJobName(e.target.value)}
+                  placeholder="Enter a descriptive name for this evaluation"
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                  disabled={isCreatingJob}
+                />
+              </div>
+              
+              <Button 
+                onClick={handleCreateEvaluationJob}
+                disabled={isCreatingJob || !jobName.trim()}
+                className="w-full"
+              >
+                {isCreatingJob ? "Creating Job..." : "Create Evaluation Job"}
+              </Button>
             </div>
           </CardContent>
         </Card>

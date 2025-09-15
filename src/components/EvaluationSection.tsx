@@ -3,8 +3,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"; 
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { PlayCircle, CheckCircle, Clock, AlertTriangle, TrendingUp } from "lucide-react";
+import { PlayCircle, CheckCircle, Clock, AlertTriangle, TrendingUp, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useEvaluationJobs } from "@/hooks/useEvaluationJobs";
 
 interface EvaluationStep {
   id: string;
@@ -15,15 +16,20 @@ interface EvaluationStep {
 }
 
 interface EvaluationSectionProps {
-  canRun: boolean;
+  activeJobId: string | null;
   onEvaluationComplete: (reportData: any) => void;
 }
 
-const EvaluationSection = ({ canRun, onEvaluationComplete }: EvaluationSectionProps) => {
+const EvaluationSection = ({ activeJobId, onEvaluationComplete }: EvaluationSectionProps) => {
   const [isRunning, setIsRunning] = useState(false);
   const [currentStep, setCurrentStep] = useState(-1);
   const [progress, setProgress] = useState(0);
   const { toast } = useToast();
+  const { jobs, loading, updateJobStatus, deleteJob } = useEvaluationJobs();
+  
+  // Find the active job or get the most recent job
+  const activeJob = activeJobId ? jobs.find(job => job.id === activeJobId) : jobs[0];
+  const canRun = activeJob?.status === 'pending';
 
   const evaluationSteps: EvaluationStep[] = [
     { id: "env", title: "Environment Snapshot", description: "Recording Python version, libraries, and random seed", status: "pending" },
@@ -47,10 +53,10 @@ const EvaluationSection = ({ canRun, onEvaluationComplete }: EvaluationSectionPr
   const [steps, setSteps] = useState(evaluationSteps);
 
   const runEvaluation = async () => {
-    if (!canRun) {
+    if (!canRun || !activeJob) {
       toast({
         title: "Cannot start evaluation",
-        description: "Please upload both dataset and model files first.",
+        description: "Please select a valid evaluation job first.",
         variant: "destructive",
       });
       return;
@@ -59,52 +65,71 @@ const EvaluationSection = ({ canRun, onEvaluationComplete }: EvaluationSectionPr
     setIsRunning(true);
     setCurrentStep(0);
     
-    // Simulate evaluation pipeline
-    for (let i = 0; i < steps.length; i++) {
-      setCurrentStep(i);
-      setProgress((i / steps.length) * 100);
+    // Update job status to running
+    await updateJobStatus(activeJob.id, 'running');
+    
+    try {
+      // Simulate evaluation pipeline
+      for (let i = 0; i < steps.length; i++) {
+        setCurrentStep(i);
+        setProgress((i / steps.length) * 100);
+        
+        // Update step status to running
+        setSteps(prevSteps => 
+          prevSteps.map((step, index) => 
+            index === i 
+              ? { ...step, status: "running" as const }
+              : step
+          )
+        );
+
+        // Simulate processing time
+        const processingTime = [500, 800, 600, 1000, 1200, 2000, 800, 1500, 1000, 2500, 800, 1200, 1800, 2200, 600, 1000][i];
+        await new Promise(resolve => setTimeout(resolve, processingTime));
+
+        // Update step status to completed
+        setSteps(prevSteps => 
+          prevSteps.map((step, index) => 
+            index === i 
+              ? { ...step, status: "completed" as const, duration: processingTime }
+              : step
+          )
+        );
+      }
+
+      setProgress(100);
       
-      // Update step status to running
-      setSteps(prevSteps => 
-        prevSteps.map((step, index) => 
-          index === i 
-            ? { ...step, status: "running" as const }
-            : step
-        )
-      );
-
-      // Simulate processing time (varies by step)
-      const processingTime = [500, 800, 600, 1000, 1200, 2000, 800, 1500, 1000, 2500, 800, 1200, 1800, 2200, 600, 1000][i];
-      await new Promise(resolve => setTimeout(resolve, processingTime));
-
-      // Update step status to completed
-      setSteps(prevSteps => 
-        prevSteps.map((step, index) => 
-          index === i 
-            ? { ...step, status: "completed" as const, duration: processingTime }
-            : step
-        )
-      );
+      // Generate mock results
+      const mockResults = {
+        accuracy: 0.874,
+        precision: 0.891,
+        recall: 0.862,
+        f1Score: 0.876,
+        completedAt: new Date().toISOString(),
+      };
+      
+      const mockReportHtml = `<html><body><h1>Evaluation Report</h1><p>Accuracy: ${mockResults.accuracy}</p></body></html>`;
+      const mockSummary = `Model achieved ${(mockResults.accuracy * 100).toFixed(1)}% accuracy with strong precision and recall scores.`;
+      
+      // Update job with results
+      await updateJobStatus(activeJob.id, 'completed', mockResults, mockReportHtml, mockSummary);
+      
+      onEvaluationComplete(mockResults);
+      
+      toast({
+        title: "Evaluation completed!",
+        description: "Your comprehensive model evaluation report is ready.",
+      });
+    } catch (error) {
+      await updateJobStatus(activeJob.id, 'failed', null, null, null, 'Evaluation pipeline failed');
+      toast({
+        title: "Evaluation failed",
+        description: "An error occurred during the evaluation process.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsRunning(false);
     }
-
-    setProgress(100);
-    setIsRunning(false);
-    
-    // Generate mock report data
-    const mockReportData = {
-      accuracy: 0.874,
-      precision: 0.891,
-      recall: 0.862,
-      f1Score: 0.876,
-      completedAt: new Date().toISOString(),
-    };
-    
-    onEvaluationComplete(mockReportData);
-    
-    toast({
-      title: "Evaluation completed!",
-      description: "Your comprehensive model evaluation report is ready.",
-    });
   };
 
   const getStepIcon = (status: string) => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Brain, Upload, FileBarChart, Download, Menu, X } from "lucide-react";
+import { Brain, Upload, FileBarChart, Download, Menu, X, User, LogOut } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface NavigationProps {
   activeSection: string;
@@ -9,6 +10,11 @@ interface NavigationProps {
 
 const Navigation = ({ activeSection, onSectionChange }: NavigationProps) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const { user, signOut } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   const navigationItems = [
     { id: "overview", label: "Overview", icon: Brain },
@@ -57,53 +63,89 @@ const Navigation = ({ activeSection, onSectionChange }: NavigationProps) => {
             })}
           </div>
 
-          {/* Mobile menu button */}
-          <div className="md:hidden">
+          {/* User Menu & Mobile menu button */}
+          <div className="flex items-center space-x-4">
+            {/* User info - Desktop */}
+            <div className="hidden md:flex items-center space-x-2 text-sm text-muted-foreground">
+              <User className="h-4 w-4" />
+              <span>{user?.email}</span>
+            </div>
+            
+            {/* Sign out button - Desktop */}
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              onClick={handleSignOut}
+              className="hidden md:flex items-center space-x-2 text-muted-foreground hover:text-foreground"
             >
-              {isMobileMenuOpen ? (
-                <X className="w-5 h-5" />
-              ) : (
-                <Menu className="w-5 h-5" />
-              )}
+              <LogOut className="h-4 w-4" />
+              <span>Sign Out</span>
             </Button>
-          </div>
-        </div>
 
-        {/* Mobile Navigation */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden border-t border-border bg-card">
-            <div className="py-3 space-y-1">
-              {navigationItems.map((item) => {
-                const Icon = item.icon;
-                const isActive = activeSection === item.id;
-                
-                return (
-                  <Button
-                    key={item.id}
-                    variant={isActive ? "secondary" : "ghost"}
-                    className={`w-full justify-start space-x-3 ${
-                      isActive 
-                        ? "bg-secondary text-secondary-foreground" 
-                        : "text-muted-foreground hover:text-foreground"
-                    }`}
-                    onClick={() => {
-                      onSectionChange(item.id);
-                      setIsMobileMenuOpen(false);
-                    }}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{item.label}</span>
-                  </Button>
-                );
-              })}
+            {/* Mobile menu button */}
+            <div className="md:hidden">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+              >
+                {isMobileMenuOpen ? (
+                  <X className="w-5 h-5" />
+                ) : (
+                  <Menu className="w-5 h-5" />
+                )}
+              </Button>
             </div>
           </div>
-        )}
+        </div>
       </div>
+
+      {/* Mobile Navigation */}
+      {isMobileMenuOpen && (
+        <div className="md:hidden border-t border-border bg-card">
+          <div className="py-3 space-y-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            {navigationItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = activeSection === item.id;
+              
+              return (
+                <Button
+                  key={item.id}
+                  variant={isActive ? "secondary" : "ghost"}
+                  className={`w-full justify-start space-x-3 ${
+                    isActive 
+                      ? "bg-secondary text-secondary-foreground" 
+                      : "text-muted-foreground hover:text-foreground"
+                  }`}
+                  onClick={() => {
+                    onSectionChange(item.id);
+                    setIsMobileMenuOpen(false);
+                  }}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{item.label}</span>
+                </Button>
+              );
+            })}
+            
+            {/* Mobile User Menu */}
+            <div className="pt-3 mt-3 border-t border-border space-y-2">
+              <div className="flex items-center space-x-2 text-sm text-muted-foreground px-3">
+                <User className="h-4 w-4" />
+                <span>{user?.email}</span>
+              </div>
+              <Button
+                variant="ghost"
+                onClick={handleSignOut}
+                className="w-full justify-start space-x-3 text-muted-foreground hover:text-foreground"
+              >
+                <LogOut className="h-4 w-4" />
+                <span>Sign Out</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </nav>
   );
 };
